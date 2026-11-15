@@ -2,6 +2,17 @@
 
 Protótipo do TP3 (Geração do Protótipo) da disciplina **Introdução à Interação Humano-Computador** (DCC/ICEx/UFMG, Profa. Raquel O. Prates).
 
+## Integrantes
+
+| Nome | GitHub |
+|---|---|
+| Erick Pedrosa Barreto | [@ErickPedrosa](https://github.com/ErickPedrosa) |
+| Guilherme Augusto Pires Lopes | [@guilhermeapl2](https://github.com/guilhermeapl2) |
+| Gustavo Antonio Mendes Coelho | [@gusttavvin](https://github.com/gusttavvin) |
+| Thiago Amorim Bastos | [@amorim027](https://github.com/amorim027) |
+
+## Sobre
+
 **MyHealthRoutine** apoia a gestão autônoma de medicamentos por pessoas da terceira idade. São dois modos no mesmo aplicativo:
 
 - **Modo Idoso** — aviso no horário, reconhecimento da caixa pela cor e pelo ícone da etiqueta, confirmação pela câmera com voz e vibração, lembrete reforçado (20 min), aviso silencioso ao contato de confiança (40 min) e pedido de ajuda.

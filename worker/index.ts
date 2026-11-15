@@ -291,12 +291,13 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     const b = await body(req);
     const name = String(b.name ?? "").trim().slice(0, 80);
     const email = String(b.email ?? "").trim().toLowerCase();
-    const phone = String(b.phone ?? "").replace(/[^\d+]/g, "").slice(0, 20) || null;
+    const phone = String(b.phone ?? "").replace(/\D/g, "").slice(0, 11) || null;
     const password = String(b.password ?? "");
     const fields: Record<string, string> = {};
     if (name.length < 2) fields.name = "Escreva seu nome.";
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fields.email = "Confira o e-mail.";
     if (password.length < 8) fields.password = "A senha precisa ter pelo menos 8 caracteres.";
+    if (phone && phone.length < 10) fields.phone = "Digite o celular com DDD. Exemplo: (31) 99999-9999";
     if (!fields.email && (await env.DB.prepare("SELECT 1 FROM users WHERE email = ?").bind(email).first())) {
       fields.email = "Já existe uma conta com este e-mail. Use “Entrar”.";
     }

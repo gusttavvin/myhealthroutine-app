@@ -356,7 +356,7 @@ function NewProfile() {
             <div className="link-preview">
               <span className="avatar">{name.charAt(0) || "?"}</span>
               <Link2 size={18} />
-              <span className="avatar elder">A</span>
+              <span className="avatar avatar-idoso">A</span>
               <p>
                 <strong>{name}</strong> ({relation}) será vinculado(a) a <strong>{ELDER_FULL}</strong>. Ele verá seu nome na tela inicial.
               </p>

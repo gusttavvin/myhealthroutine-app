@@ -82,6 +82,22 @@ export function FamilyReal({ onLeave }: { onLeave: () => void }) {
   );
 }
 
+/** Formata o celular enquanto digita: (31) 99999-9999. Aceita só números. */
+function maskPhone(value: string) {
+  const d = value.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** E-mail sem espaços e em letras minúsculas. */
+function cleanEmail(value: string) {
+  return value.replace(/\s/g, "").toLowerCase();
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
+
 function Auth({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
@@ -94,12 +110,29 @@ function Auth({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
     setError("");
   };
 
+  function checkEmail() {
+    if (form.email && !EMAIL_RE.test(form.email)) setFields((f) => ({ ...f, email: "Confira o e-mail. Exemplo: nome@gmail.com" }));
+  }
+  function checkPhone() {
+    const digits = form.phone.replace(/\D/g, "");
+    if (digits && digits.length < 10) setFields((f) => ({ ...f, phone: "Digite o celular com DDD. Exemplo: (31) 99999-9999" }));
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
+    const local: Record<string, string> = {};
+    if (!EMAIL_RE.test(form.email)) local.email = "Confira o e-mail. Exemplo: nome@gmail.com";
+    const digits = form.phone.replace(/\D/g, "");
+    if (mode === "signup" && digits && digits.length < 10) local.phone = "Digite o celular com DDD. Exemplo: (31) 99999-9999";
+    if (Object.keys(local).length) {
+      setFields(local);
+      setError("Confira os campos marcados.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const r = await api<{ token: string }>(mode === "login" ? "/auth/login" : "/auth/signup", { method: "POST", body: form });
+      const r = await api<{ token: string }>(mode === "login" ? "/auth/login" : "/auth/signup", { method: "POST", body: { ...form, phone: digits } });
       tokens.setSession(r.token);
       onDone();
     } catch (err) {
@@ -139,14 +172,40 @@ function Auth({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
           ) : null}
           <label className="field">
             <span>E-mail</span>
-            <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} autoComplete="email" aria-invalid={Boolean(fields.email)} />
+            <input
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              maxLength={120}
+              value={form.email}
+              onChange={(e) => set("email", cleanEmail(e.target.value))}
+              onBlur={checkEmail}
+              autoComplete="email"
+              placeholder="nome@gmail.com"
+              aria-invalid={Boolean(fields.email)}
+            />
             {fields.email ? <em className="field-error">{fields.email}</em> : null}
           </label>
           {mode === "signup" ? (
             <label className="field">
               <span>Celular (opcional)</span>
-              <input type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} autoComplete="tel" placeholder="(31) 99999-9999" />
-              <small className="hint">Aparece para o idoso no botão “Ligar” quando um aviso não chega.</small>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={form.phone}
+                onChange={(e) => set("phone", maskPhone(e.target.value))}
+                onBlur={checkPhone}
+                autoComplete="tel-national"
+                placeholder="(31) 99999-9999"
+                aria-invalid={Boolean(fields.phone)}
+              />
+              {fields.phone ? (
+                <em className="field-error">{fields.phone}</em>
+              ) : (
+                <small className="hint">Aparece para o idoso no botão “Ligar” quando um aviso não chega.</small>
+              )}
             </label>
           ) : null}
           <label className="field">
@@ -472,7 +531,7 @@ function LinkElder({ first, onLinked }: { first: boolean; onLinked: (elderId: st
             <div className="link-preview">
               <span className="avatar">{me.user.name.charAt(0)}</span>
               <Link2 size={18} />
-              <span className="avatar elder">{(status?.elderName || elderName || "?").charAt(0)}</span>
+              <span className="avatar avatar-idoso">{(status?.elderName || elderName || "?").charAt(0)}</span>
               <p>
                 <strong>{me.user.name}</strong> ({relation}) vai acompanhar os remédios de <strong>{status?.elderName || elderName || "…"}</strong>. Seu nome
                 aparece na tela inicial do idoso.

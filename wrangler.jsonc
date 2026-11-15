@@ -13,14 +13,14 @@
     {
       "binding": "DB",
       "database_name": "myhealthroutine",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "0a6f1f36-c18b-4810-aefc-7c1ed916b868",
       "migrations_dir": "migrations"
     }
   ],
   "triggers": { "crons": ["* * * * *"] },
   "vars": {
     "VAPID_PUBLIC_KEY": "BA4Eqdf9pOasLzjv2N1AILqDxWCpvaKNC3P9peeU5pjEKHx7aDfbU1VuhYnB3BQSjtxnzWf5TtOUrjynmnetHlA",
-    "VAPID_SUBJECT": "https://myhealthroutine.workers.dev"
+    "VAPID_SUBJECT": "https://myhealthroutine.myhealthroutine.workers.dev"
   },
   "observability": { "enabled": true }
 }

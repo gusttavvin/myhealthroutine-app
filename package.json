@@ -6,19 +6,33 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:cf": "node scripts/build-cloudflare.mjs",
+    "dev:cf": "node scripts/build-cloudflare.mjs && wrangler dev",
+    "db:local": "wrangler d1 migrations apply myhealthroutine --local",
+    "deploy:cf": "node scripts/build-cloudflare.mjs && wrangler d1 migrations apply myhealthroutine --remote && wrangler deploy",
+    "typecheck:worker": "tsc --noEmit -p worker/tsconfig.json"
   },
   "dependencies": {
+    "jsqr": "^1.4.0",
     "lucide-react": "1.45.0",
     "next": "16.3.4",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261113.1",
     "@types/node": "22.20.2",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "wrangler": "^4.162.0"
   },
-  "description": "Protótipo interativo do MyHealthRoutine (TP3 IHC UFMG)"
+  "description": "Protótipo interativo do MyHealthRoutine (TP3 IHC UFMG)",
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261113.1": true
+  }
 }

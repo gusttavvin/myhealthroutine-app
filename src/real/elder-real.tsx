@@ -194,8 +194,14 @@ function DoseCard({ dose, ringing }: { dose: TodayDose; ringing?: boolean }) {
   );
 }
 
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+/** Dose do momento: a que já chegou na hora ou, se não houver, a que começa em até 30 minutos. */
 function current(view: ElderView) {
-  return view.today.find((d) => d.status === "agora" || d.status === "tolerancia" || d.status === "nao-confirmada") ?? null;
+  const due = view.today.find((d) => d.status === "agora" || d.status === "tolerancia" || d.status === "nao-confirmada");
+  if (due) return due;
+  const soon = view.today.find((d) => d.status === "mais-tarde");
+  return soon && toMin(soon.time) - view.now.min <= 30 ? soon : null;
 }
 function next(view: ElderView) {
   return view.today.find((d) => d.status === "mais-tarde") ?? null;
@@ -211,7 +217,8 @@ function Home({ view, go }: { view: ElderView; go: (s: Screen) => void }) {
   const first = contact?.name.split(" ")[0];
   const hour = Math.floor(view.now.min / 60);
   const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
-  const avisoHoje = view.notices.find((n) => n.kind === "aviso" && n.createdAt.slice(0, 10) >= view.now.date.slice(0, 10));
+  // Aviso ao contato enviado nas últimas 3 horas (é o da dose atrasada de agora).
+  const avisoHoje = view.notices.find((n) => n.kind === "aviso" && Date.now() - Date.parse(n.createdAt) < 3 * 3600 * 1000);
 
   return (
     <>
@@ -233,9 +240,9 @@ function Home({ view, go }: { view: ElderView; go: (s: Screen) => void }) {
                 <BellRing size={30} /> Lembrete: ainda pendente
               </p>
             ) : (
-              <p className="elder-section">Agora</p>
+              <p className="elder-section">{cur.status === "mais-tarde" ? `Daqui a pouco, às ${cur.time}` : "Agora"}</p>
             )}
-            <DoseCard dose={cur} ringing={cur.status !== "nao-confirmada"} />
+            <DoseCard dose={cur} ringing={cur.status === "agora" || cur.status === "tolerancia"} />
             {cur.status === "nao-confirmada" && first ? (
               avisoHoje?.delivered ? (
                 <div className="aviso-box ok">

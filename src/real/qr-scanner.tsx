@@ -99,7 +99,10 @@ export function QrScanner({
         <span className="corner br" />
         {state === "on" && !paused ? <span className="scanline" /> : null}
         <div className="viewfinder-content">
-          {state === "starting" ? (
+          {/* Lendo ou com erro: a mensagem da leitura tem prioridade, mesmo sem câmera. */}
+          {paused ? (
+            hint
+          ) : state === "starting" ? (
             <p className="camera-hint">
               <Camera size={30} /> Abrindo a câmera…
             </p>

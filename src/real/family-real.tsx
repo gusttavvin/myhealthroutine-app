@@ -276,9 +276,13 @@ function FamilyApp({ onLogout: onLogoutProp }: { onLogout: () => void }) {
       setLoadError("");
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) onLogout();
-      else setLoadError(e instanceof Error ? e.message : "Sem conexão.");
+      else if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
+        // O idoso tirou o acesso: volta para a lista de idosos acompanhados.
+        localStorage.removeItem(ELDER_KEY);
+        await loadMe();
+      } else setLoadError(e instanceof Error ? e.message : "Sem conexão.");
     }
-  }, [elderId, onLogout]);
+  }, [elderId, onLogout, loadMe]);
 
   useEffect(() => {
     loadMe();
@@ -567,13 +571,15 @@ function Dashboard({ onPickElder }: { onPickElder: (id: string) => void }) {
   if (!view) return null;
   const medById = new Map(view.meds.map((m) => [m.id, m]));
   const low = view.meds.filter((m) => daysLeft(m) <= 7);
+  const notToday = view.meds.filter((m) => !view.today.some((d) => d.medId === m.id));
   const noLabel = view.meds.filter((m) => !m.label);
   const counts = {
     ok: view.today.filter((d) => d.status === "tomado").length,
     pend: view.today.filter((d) => d.status === "agora" || d.status === "tolerancia").length,
     bad: view.today.filter((d) => d.status === "nao-confirmada").length,
   };
-  const myLink = me.elders.find((e) => e.id === elderId);
+  // Lido da lista atual de contatos (que é recarregada), e não do login.
+  const myLink = view.contacts.find((c) => c.userId === me.user.id);
   const trustedContact = view.contacts.find((c) => c.trusted);
 
   return (
@@ -631,8 +637,14 @@ function Dashboard({ onPickElder }: { onPickElder: (id: string) => void }) {
               })}
             </ul>
           ) : (
-            <p className="muted small">Nenhum remédio para hoje. Cadastre a primeira prescrição.</p>
+            <p className="muted small">{view.meds.length ? "Nenhuma dose para hoje." : "Nenhum remédio cadastrado. Comece por “Prescrições”."}</p>
           )}
+          {notToday.length ? (
+            <p className="not-today">
+              {notToday.map((m) => `${m.name} ${m.dosage} (${marco(m.marco).label}, ${m.time})`).join("; ")}: sem dose hoje
+              {notToday.some((m) => m.createdDate === view.now.date) ? ", começa no próximo horário." : "."}
+            </p>
+          ) : null}
         </section>
 
         {low.length || noLabel.length || view.notices.length ? (

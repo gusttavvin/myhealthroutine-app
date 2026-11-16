@@ -55,6 +55,7 @@ type Ctx = {
   go: (s: Screen) => void;
   notify: (msg: string, kind?: "ok" | "error") => void;
   logout: () => void;
+  onSwitchToElder?: () => void;
 };
 const FamilyCtx = createContext<Ctx | null>(null);
 const useFam = () => useContext(FamilyCtx)!;
@@ -69,11 +70,12 @@ function daysLeft(m: Med) {
 /* Entrada                                                             */
 /* ------------------------------------------------------------------ */
 
-export function FamilyReal({ onLeave }: { onLeave: () => void }) {
+export function FamilyReal({ onLeave, onSwitchToElder }: { onLeave: () => void; onSwitchToElder?: () => void }) {
   const [logged, setLogged] = useState(Boolean(tokens.session()));
-  if (!logged) return <Auth onDone={() => setLogged(true)} onBack={onLeave} />;
+  if (!logged) return <Auth onDone={() => setLogged(true)} onBack={onSwitchToElder ?? onLeave} backToElder={Boolean(onSwitchToElder)} />;
   return (
     <FamilyApp
+      onSwitchToElder={onSwitchToElder}
       onLogout={() => {
         setLogged(false);
         onLeave();
@@ -98,7 +100,7 @@ function cleanEmail(value: string) {
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 
-function Auth({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
+function Auth({ onDone, onBack, backToElder = false }: { onDone: () => void; onBack: () => void; backToElder?: boolean }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -148,7 +150,7 @@ function Auth({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   return (
     <div className="family">
       <header className="fam-top">
-        <button type="button" className="icon-btn" aria-label="Voltar" onClick={onBack}>
+        <button type="button" className="icon-btn" aria-label={backToElder ? "Voltar ao Modo Idoso" : "Voltar"} title={backToElder ? "Voltar ao Modo Idoso" : "Voltar"} onClick={onBack}>
           <ArrowLeft size={22} />
         </button>
         <h1>Modo Familiar / Cuidador</h1>
@@ -233,7 +235,7 @@ function Auth({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   );
 }
 
-function FamilyApp({ onLogout: onLogoutProp }: { onLogout: () => void }) {
+function FamilyApp({ onLogout: onLogoutProp, onSwitchToElder }: { onLogout: () => void; onSwitchToElder?: () => void }) {
   const logoutRef = useRef(onLogoutProp);
   logoutRef.current = onLogoutProp;
   const onLogout = useCallback(() => logoutRef.current(), []);
@@ -325,7 +327,7 @@ function FamilyApp({ onLogout: onLogoutProp }: { onLogout: () => void }) {
     );
   }
 
-  const ctx: Ctx = { me, elderId: elderId ?? "", view, reload, go, notify, logout };
+  const ctx: Ctx = { me, elderId: elderId ?? "", view, reload, go, notify, logout, onSwitchToElder };
 
   return (
     <FamilyCtx.Provider value={ctx}>
@@ -333,11 +335,11 @@ function FamilyApp({ onLogout: onLogoutProp }: { onLogout: () => void }) {
         {!elderId || screen.name === "vincular" ? (
           <LinkElder
             first={!elderId}
-            onLinked={async (id) => {
+            onLinked={async (id, relinked) => {
               await loadMe();
               setElderId(id);
               setScreen({ name: "painel" });
-              notify("Vínculo feito. O idoso já vê seu nome na tela dele.");
+              notify(relinked ? "Celular religado. Os remédios e o histórico continuam." : "Vínculo feito. O idoso já vê seu nome na tela dele.");
             }}
           />
         ) : !view ? (
@@ -416,25 +418,45 @@ function Top({ title, back = true }: { title: string; back?: boolean }) {
 /* Vínculo                                                             */
 /* ------------------------------------------------------------------ */
 
-function LinkElder({ first, onLinked }: { first: boolean; onLinked: (elderId: string) => void }) {
+function LinkElder({ first, onLinked }: { first: boolean; onLinked: (elderId: string, relinked?: boolean) => void }) {
   const { me, go, logout } = useFam();
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"code" | "confirm">("code");
-  const [status, setStatus] = useState<{ status: "new" | "existing" | "already"; elderName?: string } | null>(null);
+  const [status, setStatus] = useState<{ status: "new" | "existing" | "already"; elderName?: string; mine?: { id: string; name: string }[] } | null>(null);
+  // Celular sem idoso: "" = ainda não escolheu, "novo" = idoso novo, ou o id de um idoso já acompanhado.
+  const [choice, setChoice] = useState("");
   const [elderName, setElderName] = useState("");
   const [relation, setRelation] = useState("filho(a)");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ownCode, setOwnCode] = useState(false);
+
+  // Mesmo aparelho do idoso, ainda sem vínculo: já traz o código preenchido.
+  useEffect(() => {
+    if (!tokens.device()) return;
+    api<{ linked: boolean; code?: string }>("/device/me", { as: "device" })
+      .then((v) => {
+        if (!v.linked && v.code) {
+          setCode(v.code);
+          setOwnCode(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function check(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const r = await api<{ status: "new" | "existing" | "already"; elderName?: string }>("/link/check", { method: "POST", body: { code } });
-      if (r.status === "already") setError(`Você já acompanha ${r.elderName}.`);
+      const r = await api<{ status: "new" | "existing" | "already"; elderName?: string; mine?: { id: string; name: string }[] }>("/link/check", {
+        method: "POST",
+        body: { code },
+      });
+      if (r.status === "already") setError(`Você já acompanha ${r.elderName} e este celular já está ligado a ele.`);
       else {
         setStatus(r);
+        setChoice(r.status === "new" && !r.mine?.length ? "novo" : "");
         setStep("confirm");
       }
     } catch (err) {
@@ -449,8 +471,12 @@ function LinkElder({ first, onLinked }: { first: boolean; onLinked: (elderId: st
     setBusy(true);
     setError("");
     try {
-      const r = await api<{ elderId: string }>("/link", { method: "POST", body: { code, relation, elderName } });
-      onLinked(r.elderId);
+      const relink = status?.status === "new" && choice && choice !== "novo";
+      const r = await api<{ elderId: string; relinked?: boolean }>("/link", {
+        method: "POST",
+        body: relink ? { code, elderId: choice } : { code, relation, elderName },
+      });
+      onLinked(r.elderId, r.relinked);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Tente de novo.");
       if (err instanceof ApiError && err.code === "bad_code") setStep("code");
@@ -503,7 +529,11 @@ function LinkElder({ first, onLinked }: { first: boolean; onLinked: (elderId: st
                 placeholder="000000"
                 aria-invalid={Boolean(error)}
               />
-              {error ? <em className="field-error">{error}</em> : null}
+              {error ? (
+                <em className="field-error">{error}</em>
+              ) : ownCode ? (
+                <small className="hint">Este é o código deste mesmo aparelho, que está no Modo Idoso esperando o vínculo.</small>
+              ) : null}
             </label>
             <button type="submit" className="btn primary wide" disabled={code.length !== 6 || busy}>
               {busy ? "Conferindo…" : "Continuar"}
@@ -511,42 +541,80 @@ function LinkElder({ first, onLinked }: { first: boolean; onLinked: (elderId: st
           </form>
         ) : (
           <form className="fam-form" onSubmit={confirm}>
-            {status?.status === "new" ? (
+            {status?.status === "new" && status.mine?.length ? (
+              <div className="field">
+                <span>De quem é este celular?</span>
+                <div className="choice-list" role="radiogroup">
+                  {status.mine.map((e) => (
+                    <button key={e.id} type="button" role="radio" aria-checked={choice === e.id} className={`choice ${choice === e.id ? "on" : ""}`} onClick={() => setChoice(e.id)}>
+                      <span className="avatar avatar-idoso">{e.name.charAt(0)}</span>
+                      <span>
+                        <strong>{e.name}</strong>
+                        <small>você já acompanha · remédios e histórico continuam</small>
+                      </span>
+                    </button>
+                  ))}
+                  <button type="button" role="radio" aria-checked={choice === "novo"} className={`choice ${choice === "novo" ? "on" : ""}`} onClick={() => setChoice("novo")}>
+                    <span className="avatar">+</span>
+                    <span>
+                      <strong>Um idoso novo</strong>
+                      <small>começar do zero, com outro nome</small>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {status?.status === "new" && choice === "novo" ? (
               <label className="field">
                 <span>Nome do idoso</span>
                 <input value={elderName} onChange={(e) => setElderName(e.target.value)} placeholder="Ex.: Aloísio Mendes" />
                 <small className="hint">É como o aplicativo vai chamar o idoso.</small>
               </label>
-            ) : (
+            ) : status?.status === "existing" ? (
               <p className="fam-lead">
-                Este celular é de <strong>{status?.elderName}</strong>.
+                Este celular é de <strong>{status.elderName}</strong>.
               </p>
-            )}
-            <label className="field">
-              <span>Sua relação com o idoso</span>
-              <select value={relation} onChange={(e) => setRelation(e.target.value)}>
-                <option>filho(a)</option>
-                <option>neto(a)</option>
-                <option>cônjuge</option>
-                <option>cuidador(a) formal</option>
-                <option>outro</option>
-              </select>
-            </label>
-            <div className="link-preview">
-              <span className="avatar">{me.user.name.charAt(0)}</span>
-              <Link2 size={18} />
-              <span className="avatar avatar-idoso">{(status?.elderName || elderName || "?").charAt(0)}</span>
-              <p>
-                <strong>{me.user.name}</strong> ({relation}) vai acompanhar os remédios de <strong>{status?.elderName || elderName || "…"}</strong>. Seu nome
-                aparece na tela inicial do idoso.
-              </p>
-            </div>
+            ) : null}
+
+            {choice === "novo" || status?.status === "existing" ? (
+              <>
+                <label className="field">
+                  <span>Sua relação com o idoso</span>
+                  <select value={relation} onChange={(e) => setRelation(e.target.value)}>
+                    <option>filho(a)</option>
+                    <option>neto(a)</option>
+                    <option>cônjuge</option>
+                    <option>cuidador(a) formal</option>
+                    <option>outro</option>
+                  </select>
+                </label>
+                <div className="link-preview">
+                  <span className="avatar">{me.user.name.charAt(0)}</span>
+                  <Link2 size={18} />
+                  <span className="avatar avatar-idoso">{(status?.elderName || elderName || "?").charAt(0)}</span>
+                  <p>
+                    <strong>{me.user.name}</strong> ({relation}) vai acompanhar os remédios de <strong>{status?.elderName || elderName || "…"}</strong>. Seu
+                    nome aparece na tela inicial do idoso.
+                  </p>
+                </div>
+              </>
+            ) : choice ? (
+              <div className="link-preview">
+                <Smartphone size={18} />
+                <p>
+                  Este celular volta a ser de <strong>{status?.mine?.find((e) => e.id === choice)?.name}</strong>. Nada se perde: os remédios, as etiquetas e o
+                  histórico continuam.
+                </p>
+              </div>
+            ) : null}
+
             {error ? (
               <p className="form-alert" role="alert">
                 <AlertTriangle size={18} /> {error}
               </p>
             ) : null}
-            <button type="submit" className="btn primary wide" disabled={busy}>
+            <button type="submit" className="btn primary wide" disabled={busy || !choice && status?.status === "new"}>
               <Link2 size={18} /> {busy ? "Vinculando…" : "Confirmar vínculo"}
             </button>
           </form>
@@ -567,7 +635,7 @@ function timeOf(iso: string) {
 }
 
 function Dashboard({ onPickElder }: { onPickElder: (id: string) => void }) {
-  const { me, view, go, elderId, reload, notify } = useFam();
+  const { me, view, go, elderId, reload, notify, onSwitchToElder } = useFam();
   if (!view) return null;
   const medById = new Map(view.meds.map((m) => [m.id, m]));
   const low = view.meds.filter((m) => daysLeft(m) <= 7);
@@ -729,6 +797,11 @@ function Dashboard({ onPickElder }: { onPickElder: (id: string) => void }) {
           <button type="button" className="btn ghost wide" onClick={() => go({ name: "vincular" })}>
             <Link2 size={16} /> Acompanhar outro idoso
           </button>
+          {onSwitchToElder ? (
+            <button type="button" className="btn ghost wide" onClick={onSwitchToElder}>
+              <Smartphone size={16} /> Voltar ao Modo Idoso neste aparelho
+            </button>
+          ) : null}
         </section>
 
         <PushCard as="user" when="on" />

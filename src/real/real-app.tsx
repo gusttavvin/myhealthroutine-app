@@ -9,6 +9,23 @@ import { registerServiceWorker } from "./push";
 
 type Role = "loading" | "welcome" | "elder" | "family";
 
+// Modo escolhido neste aparelho. Trocar de modo não apaga o vínculo do celular do idoso.
+const MODE_KEY = "mhr-modo";
+function savedMode() {
+  try {
+    return localStorage.getItem(MODE_KEY);
+  } catch {
+    return null;
+  }
+}
+function saveMode(mode: "idoso" | "familiar") {
+  try {
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    /* sem armazenamento */
+  }
+}
+
 export function RealApp() {
   const [role, setRole] = useState<Role>("loading");
   const [error, setError] = useState("");
@@ -16,16 +33,30 @@ export function RealApp() {
 
   useEffect(() => {
     registerServiceWorker();
-    setRole(tokens.device() ? "elder" : tokens.session() ? "family" : "welcome");
+    const mode = savedMode();
+    if (mode === "familiar") setRole("family");
+    else setRole(tokens.device() ? "elder" : tokens.session() ? "family" : "welcome");
   }, []);
 
+  function toFamily() {
+    saveMode("familiar");
+    setRole("family");
+  }
+
+  function toElder() {
+    saveMode("idoso");
+    setRole("elder");
+  }
+
   async function startElder() {
+    // Este aparelho já é o celular do idoso: só volta para ele, sem criar outro.
+    if (tokens.device()) return toElder();
     setBusy(true);
     setError("");
     try {
       const r = await api<{ deviceToken: string }>("/device/register", { method: "POST" });
       tokens.setDevice(r.deviceToken);
-      setRole("elder");
+      toElder();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Não foi possível agora. Tente de novo.");
     } finally {
@@ -36,9 +67,15 @@ export function RealApp() {
   return (
     <div className="real-shell">
       {role === "elder" ? (
-        <ElderReal onLeave={() => setRole(tokens.device() ? "elder" : "welcome")} />
+        <ElderReal onLeave={() => setRole(tokens.device() ? "elder" : "welcome")} onSwitchToFamily={toFamily} />
       ) : role === "family" ? (
-        <FamilyReal onLeave={() => setRole("welcome")} />
+        <FamilyReal
+          onLeave={() => {
+            saveMode(tokens.device() ? "idoso" : "familiar");
+            setRole("welcome");
+          }}
+          onSwitchToElder={tokens.device() ? toElder : undefined}
+        />
       ) : role === "welcome" ? (
         <main className="start">
           <div className="start-brand">
@@ -55,10 +92,10 @@ export function RealApp() {
             </span>
             <span>
               <strong>Este é o celular do idoso</strong>
-              <small>{busy ? "Preparando…" : "Para tomar os remédios"}</small>
+              <small>{busy ? "Preparando…" : tokens.device() ? "Voltar ao Modo Idoso" : "Para tomar os remédios"}</small>
             </span>
           </button>
-          <button type="button" className="start-card fam-card-btn" onClick={() => setRole("family")}>
+          <button type="button" className="start-card fam-card-btn" onClick={toFamily}>
             <span className="start-icon">
               <Users size={30} />
             </span>

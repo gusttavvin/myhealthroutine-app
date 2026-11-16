@@ -439,7 +439,15 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
   if (path === "/api/link/check" && method === "POST") {
     const b = await body(req);
     const device = await deviceByCode(env, String(b.code ?? ""));
-    if (!device.elder_id) return json({ status: "new" });
+    if (!device.elder_id) {
+      // Celular ainda sem idoso: pode ser um idoso novo ou um que o familiar já acompanha (celular trocado ou reinstalado).
+      const { results } = await env.DB.prepare(
+        "SELECT e.id, e.name FROM links l JOIN elders e ON e.id = l.elder_id WHERE l.user_id = ? ORDER BY l.created_at",
+      )
+        .bind(user.id)
+        .all<{ id: string; name: string }>();
+      return json({ status: "new", mine: results });
+    }
     const elder = await getElder(env, device.elder_id);
     const already = await env.DB.prepare("SELECT 1 FROM links WHERE user_id = ? AND elder_id = ?").bind(user.id, elder.id).first();
     return json({ status: already ? "already" : "existing", elderName: elder.name });
@@ -450,6 +458,13 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     const device = await deviceByCode(env, String(b.code ?? ""));
     const relation = String(b.relation ?? "familiar").slice(0, 40);
     let elderId = device.elder_id;
+    if (!elderId && b.elderId) {
+      // Religar este celular a um idoso que o familiar já acompanha.
+      await requireLink(env, user.id, String(b.elderId));
+      elderId = String(b.elderId);
+      await env.DB.prepare("UPDATE devices SET elder_id = ?, link_code = NULL, link_expires = NULL WHERE id = ?").bind(elderId, device.id).run();
+      return json({ elderId, relinked: true });
+    }
     if (!elderId) {
       const elderName = String(b.elderName ?? "").trim().slice(0, 60);
       if (elderName.length < 2) throw Object.assign(new HttpError(400, "invalid", "Escreva o nome do idoso."), { fields: { elderName: "Escreva o nome do idoso." } });

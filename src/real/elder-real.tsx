@@ -16,6 +16,7 @@ import {
   TriangleAlert,
   Undo2,
   UserMinus,
+  Users,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -51,7 +52,7 @@ function boxPhrase(m: { marco: Med["marco"] }) {
   return `caixa ${mc.colorName} com ${mc.iconName}`;
 }
 
-export function ElderReal({ onLeave: onLeaveProp }: { onLeave: () => void }) {
+export function ElderReal({ onLeave: onLeaveProp, onSwitchToFamily }: { onLeave: () => void; onSwitchToFamily: () => void }) {
   const leaveRef = useRef(onLeaveProp);
   leaveRef.current = onLeaveProp;
   const onLeave = useCallback(() => leaveRef.current(), []);
@@ -129,7 +130,7 @@ export function ElderReal({ onLeave: onLeaveProp }: { onLeave: () => void }) {
     );
   }
 
-  if (!view.linked) return <LinkCode code={view.code} expiresAt={view.expiresAt} onRefresh={load} onLeave={onLeave} />;
+  if (!view.linked) return <LinkCode code={view.code} expiresAt={view.expiresAt} onRefresh={load} onLeave={onLeave} onSwitchToFamily={onSwitchToFamily} />;
 
   const go = (s: Screen) => setScreen(s);
   const home = () => {
@@ -145,7 +146,7 @@ export function ElderReal({ onLeave: onLeaveProp }: { onLeave: () => void }) {
       {screen.name === "confirmed" && <Confirmed view={view} medId={screen.medId} min={screen.min} onBack={home} />}
       {screen.name === "tested" && <Tested view={view} medId={screen.medId} onBack={home} go={go} />}
       {screen.name === "help" && <Help view={view} onBack={home} />}
-      {screen.name === "menu" && <Menu go={go} onBack={home} onLeave={onLeave} />}
+      {screen.name === "menu" && <Menu go={go} onBack={home} onLeave={onLeave} onSwitchToFamily={onSwitchToFamily} />}
       {screen.name === "code" && <ShowCode onBack={home} />}
       {screen.name === "people" && <People view={view} onBack={home} reload={load} />}
       {screen.name !== "home" && screen.name !== "scan" && screen.name !== "help" && screen.name !== "menu" ? (
@@ -594,9 +595,9 @@ function Help({ view, onBack }: { view: ElderView; onBack: () => void }) {
   );
 }
 
-function Menu({ go, onBack, onLeave }: { go: (s: Screen) => void; onBack: () => void; onLeave: () => void }) {
+function Menu({ go, onBack, onLeave, onSwitchToFamily }: { go: (s: Screen) => void; onBack: () => void; onLeave: () => void; onSwitchToFamily: () => void }) {
   async function disconnect() {
-    if (!window.confirm("Desconectar este celular? Será preciso vincular de novo com um familiar.")) return;
+    if (!window.confirm("Desconectar este celular do idoso? Os remédios e o histórico continuam guardados, mas será preciso vincular o celular de novo com um familiar.")) return;
     try {
       await api("/device/unlink", { method: "POST", as: "device" });
     } catch {
@@ -618,6 +619,9 @@ function Menu({ go, onBack, onLeave }: { go: (s: Screen) => void; onBack: () => 
         </button>
         <button type="button" className="elder-secondary neutral" onClick={() => go({ name: "code" })}>
           <Link2 size={28} /> Vincular outro familiar
+        </button>
+        <button type="button" className="elder-secondary neutral" onClick={onSwitchToFamily}>
+          <Users size={28} /> Usar o Modo Familiar neste aparelho
         </button>
         <button type="button" className="elder-link" onClick={disconnect}>
           Desconectar este celular
@@ -687,7 +691,19 @@ function People({ view, onBack, reload }: { view: ElderView; onBack: () => void;
   );
 }
 
-function LinkCode({ code, expiresAt, onRefresh, onLeave }: { code: string; expiresAt: string; onRefresh: () => void; onLeave: () => void }) {
+function LinkCode({
+  code,
+  expiresAt,
+  onRefresh,
+  onLeave,
+  onSwitchToFamily,
+}: {
+  code: string;
+  expiresAt: string;
+  onRefresh: () => void;
+  onLeave: () => void;
+  onSwitchToFamily: () => void;
+}) {
   useEffect(() => {
     const id = setInterval(onRefresh, 4000);
     return () => clearInterval(id);
@@ -715,6 +731,10 @@ function LinkCode({ code, expiresAt, onRefresh, onLeave }: { code: string; expir
         </p>
         <CodeDigits code={code} />
         <p className="confirmed-info">Vale por mais {minutes} minuto{minutes === 1 ? "" : "s"}. Esta tela muda sozinha quando o familiar terminar.</p>
+        <button type="button" className="elder-secondary neutral" onClick={onSwitchToFamily}>
+          <Users size={26} /> O familiar vai usar este mesmo aparelho
+        </button>
+        <p className="confirmed-info">Útil para testar num computador só: o código já aparece preenchido no Modo Familiar.</p>
       </main>
     </div>
   );

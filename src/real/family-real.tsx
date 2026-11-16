@@ -730,6 +730,8 @@ function Dashboard({ onPickElder }: { onPickElder: (id: string) => void }) {
             <Link2 size={16} /> Acompanhar outro idoso
           </button>
         </section>
+
+        <PushCard as="user" when="on" />
       </main>
     </>
   );

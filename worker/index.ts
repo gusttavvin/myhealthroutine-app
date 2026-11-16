@@ -344,6 +344,13 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     return json({ title: row?.last_title ?? "MyHealthRoutine", body: row?.last_body ?? "Abra o aplicativo para ver o aviso." });
   }
 
+  if (path === "/api/push/test" && method === "POST") {
+    const ownerKind = bearer(req, "Device") ? "device" : "user";
+    const ownerId = ownerKind === "device" ? (await authDevice(env, req)).id : (await authUser(env, req)).id;
+    const delivered = await pushTo(env, ownerKind, [ownerId], "Teste de aviso", "Pronto! Os avisos do MyHealthRoutine estão chegando neste aparelho.");
+    return json({ delivered });
+  }
+
   if (path === "/api/push/subscribe" && method === "POST") {
     const b = await body(req);
     const endpoint = String(b.endpoint ?? "");

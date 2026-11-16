@@ -609,6 +609,7 @@ function Menu({ go, onBack, onLeave }: { go: (s: Screen) => void; onBack: () => 
     <>
       <Top onBack={onBack} />
       <main className="elder-main">
+        <PushCard as="device" big when="always" />
         <button type="button" className="elder-secondary neutral" onClick={() => go({ name: "scan", test: true })}>
           <ScanLine size={28} /> Testar uma etiqueta
         </button>

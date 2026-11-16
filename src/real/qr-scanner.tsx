@@ -1,12 +1,51 @@
 "use client";
 
 import jsQR from "jsqr";
-import { Camera, CameraOff, Keyboard } from "lucide-react";
+import { Camera, CameraOff, Keyboard, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+
+type Failure = "blocked" | "none" | "busy" | "unsupported" | "other";
+
+const FAILURE_TEXT: Record<Failure, { title: string; text: string; retry: boolean }> = {
+  blocked: {
+    title: "A câmera está bloqueada para este site",
+    text: "Para liberar: clique no cadeado (ou no ícone de ajustes) à esquerda do endereço do site, escolha Câmera → Permitir e toque em “Abrir a câmera de novo”.",
+    retry: true,
+  },
+  none: {
+    title: "Não encontrei nenhuma câmera",
+    text: "Este aparelho não tem câmera ou ela está desligada. Digite o código impresso embaixo do QR da etiqueta.",
+    retry: true,
+  },
+  busy: {
+    title: "A câmera está sendo usada por outro programa",
+    text: "Feche o programa que está usando a câmera (como Teams, Zoom ou Meet) e toque em “Abrir a câmera de novo”.",
+    retry: true,
+  },
+  unsupported: {
+    title: "Este navegador não permite usar a câmera",
+    text: "Abra o site no Google Chrome, no Edge ou no Safari, ou digite o código impresso na etiqueta.",
+    retry: false,
+  },
+  other: {
+    title: "Não consegui abrir a câmera",
+    text: "Toque em “Abrir a câmera de novo” ou digite o código impresso na etiqueta.",
+    retry: true,
+  },
+};
+
+function classify(err: unknown): Failure {
+  const name = (err as { name?: string })?.name ?? "";
+  if (name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError") return "blocked";
+  if (name === "NotFoundError" || name === "DevicesNotFoundError" || name === "OverconstrainedError") return "none";
+  if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") return "busy";
+  return "other";
+}
 
 /**
  * Câmera de verdade: lê o QR da etiqueta sozinha, sem precisar apertar nada.
- * Se a câmera não abrir, dá para digitar o código impresso embaixo do QR.
+ * Funciona com a câmera traseira do celular ou com a webcam do computador.
+ * Se a câmera não abrir, explica o motivo e permite digitar o código impresso embaixo do QR.
  */
 export function QrScanner({
   onCode,
@@ -22,30 +61,51 @@ export function QrScanner({
   const video = useRef<HTMLVideoElement | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const [state, setState] = useState<"starting" | "on" | "failed">("starting");
+  const [failure, setFailure] = useState<Failure>("other");
+  const [attempt, setAttempt] = useState(0);
   const [manual, setManual] = useState(false);
   const [typed, setTyped] = useState("");
   const pausedRef = useRef(paused);
   const last = useRef<{ code: string; at: number } | null>(null);
   pausedRef.current = paused;
+  const onCodeRef = useRef(onCode);
+  onCodeRef.current = onCode;
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-    let raf = 0;
+    let timer = 0;
     let stopped = false;
+    setState("starting");
 
-    async function start() {
+    async function open() {
+      if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error("sem suporte"), { name: "Unsupported" });
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        // Celular: câmera traseira. Computador: a webcam que existir.
+        return await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
-        if (stopped) return;
+      } catch (err) {
+        if (classify(err) === "none") return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        throw err;
+      }
+    }
+
+    async function start() {
+      try {
+        stream = await open();
+        if (stopped) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         const v = video.current!;
         v.srcObject = stream;
         await v.play();
         setState("on");
         loop();
-      } catch {
+      } catch (err) {
+        if (stopped) return;
+        setFailure((err as { name?: string })?.name === "Unsupported" ? "unsupported" : classify(err));
         setState("failed");
         setManual(true);
       }
@@ -75,19 +135,18 @@ export function QrScanner({
           }
         }
       }
-      raf = window.setTimeout(loop, 180) as unknown as number;
+      timer = window.setTimeout(loop, 180);
     }
 
     start();
     return () => {
       stopped = true;
-      clearTimeout(raf);
+      clearTimeout(timer);
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, []);
+  }, [attempt]);
 
-  const onCodeRef = useRef(onCode);
-  onCodeRef.current = onCode;
+  const fail = FAILURE_TEXT[failure];
 
   return (
     <div className={`qr ${big ? "big" : ""}`}>
@@ -105,18 +164,25 @@ export function QrScanner({
           ) : state === "starting" ? (
             <p className="camera-hint">
               <Camera size={30} /> Abrindo a câmera…
+              <br />
+              <small>Se o navegador perguntar, escolha “Permitir”.</small>
             </p>
           ) : state === "failed" ? (
-            <p className="camera-hint">
-              <CameraOff size={30} /> Não consegui abrir a câmera.
-              <br />
-              Permita o uso da câmera ou digite o código da etiqueta.
-            </p>
+            <div className="camera-hint camera-fail" role="alert">
+              <CameraOff size={30} />
+              <strong>{fail.title}</strong>
+              <span>{fail.text}</span>
+            </div>
           ) : (
             hint
           )}
         </div>
       </div>
+      {state === "failed" && fail.retry ? (
+        <button type="button" className="btn ghost wide" onClick={() => setAttempt((n) => n + 1)}>
+          <RotateCcw size={16} /> Abrir a câmera de novo
+        </button>
+      ) : null}
       <canvas ref={canvas} hidden />
       {manual ? (
         <form

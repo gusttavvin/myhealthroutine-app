@@ -685,7 +685,7 @@ a.elder-secondary { text-decoration: none; }
 .push-card.warn { background: var(--warn-soft); color: #5e3d00; }
 
 .viewfinder.real { min-height: 0; aspect-ratio: 4 / 3; padding: 0; }
-.qr.big .viewfinder.real { aspect-ratio: 3 / 4; max-height: 56svh; }
+.qr.big .viewfinder.real { aspect-ratio: auto; width: 100%; height: min(56svh, 460px); }
 .viewfinder.real video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.2s; }
 .viewfinder.real video.on { opacity: 1; }
 .viewfinder.real .viewfinder-content { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 2; }
@@ -713,3 +713,11 @@ a.elder-secondary { text-decoration: none; }
   .print-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 .not-today { margin: 4px 0 0; padding: 8px 10px; border-radius: 10px; background: #eef3fb; color: #1c3a6b; font-size: 0.82rem; }
+.push-card.on { background: var(--ok-soft); color: #0f5130; }
+.push-card p { display: block; }
+.push-card p svg { vertical-align: -2px; }
+.push-ok { font-style: normal; font-weight: 700; color: var(--ok); font-size: 0.9rem; }
+.push-note { color: inherit; opacity: 0.8; font-size: 0.82rem; }
+.camera-fail { display: grid; justify-items: center; gap: 6px; text-align: center; font-size: 0.98rem; }
+.camera-fail strong { font-size: 1.05rem; }
+.camera-hint small { font-size: 0.85rem; opacity: 0.85; }

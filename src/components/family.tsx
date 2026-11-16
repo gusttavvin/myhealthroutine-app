@@ -385,6 +385,7 @@ function Dashboard() {
   const doses = todayDoses(state);
   const lowStock = state.meds.filter((m) => daysLeft(m) <= 7);
   const noLabel = state.meds.filter((m) => !m.label);
+  const notToday = state.meds.filter((m) => !doses.some((d) => d.med.id === m.id));
   const counts = {
     tomado: doses.filter((d) => d.status === "tomado").length,
     pend: doses.filter((d) => d.status === "agora" || d.status === "tolerancia").length,
@@ -430,6 +431,12 @@ function Dashboard() {
               </li>
             ))}
           </ul>
+          {notToday.length ? (
+            <p className="not-today">
+              {notToday.map((m) => `${m.name} ${m.dosage} (${marco(m.marco).label}, ${m.time})`).join("; ")}: sem dose hoje
+              {notToday.some((m) => m.createdAt !== undefined) ? ", começa no próximo horário." : "."}
+            </p>
+          ) : null}
         </section>
 
         {lowStock.length || noLabel.length || state.notices.length ? (

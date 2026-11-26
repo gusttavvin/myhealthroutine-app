@@ -221,7 +221,7 @@ function Panel({ onClose }: { onClose: () => void }) {
             <strong>Beatriz cadastra o Omeprazol 20 mg</strong> no amanhecer (06:30) e associa a etiqueta laranja à caixa (Modo Familiar, senha 1234).
           </li>
           <li>
-            <strong>Marcos consulta a adesão da semana, compartilha o relatório com o médico</strong> e avisa a reposição da Varfarina (Modo Familiar, senha 1234; a digital dele não está cadastrada neste celular).
+            <strong>Marcos consulta a adesão da semana, compartilha o relatório com o médico</strong> e avisa a reposição da Varfarina (Modo Familiar, senha 1234: ele entra pelo celular de trabalho, sem a digital cadastrada).
           </li>
         </ol>
       </details>

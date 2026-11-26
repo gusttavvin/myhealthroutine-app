@@ -660,3 +660,44 @@ h1, h2, h3, p { margin: 0; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .not-today { margin: 4px 0 0; padding: 8px 10px; border-radius: 10px; background: #eef3fb; color: #1c3a6b; font-size: 0.82rem; }
+
+/* ------------------------------------------------------------------ */
+/* Revisão do design (Percurso Cognitivo)                              */
+/* ------------------------------------------------------------------ */
+
+.btn-two { display: grid; text-align: left; line-height: 1.15; }
+.btn-two b { font-size: 1.3rem; }
+.btn-two small { font-size: 0.95rem; font-weight: 400; opacity: 0.92; margin-top: 2px; }
+.look-for { display: grid; justify-items: center; gap: 2px; flex: none; }
+.look-for small { font-size: 0.75rem; font-weight: 700; color: #5f594a; }
+
+.take { justify-items: center; text-align: center; }
+.take-ok { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 99px; background: var(--ok-soft); color: var(--ok); font-size: 1.3rem; font-weight: 700; margin-top: 8px; }
+.take-now { font-size: 1.7rem; font-weight: 700; line-height: 1.25; padding: 14px 18px; border-radius: 18px; background: #e6f0ff; color: #133c80; width: 100%; }
+.take .elder-primary { width: 100%; }
+.take-note { font-size: 1rem; color: #5f594a; }
+.auto-back { font-size: 0.95rem; color: #5f594a; margin-top: -6px; }
+.confirmed .elder-primary { margin-top: 4px; }
+
+.fam-top .text-btn { display: inline-flex; align-items: center; gap: 5px; min-height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.12); color: #fff; font-weight: 700; font-size: 0.85rem; }
+.fam-top .text-btn:hover { background: rgba(255, 255, 255, 0.22); }
+.fam-ubiq { gap: 6px; }
+
+.weekdays button { width: auto; min-width: 54px; height: 40px; padding: 0 10px; border-radius: 99px; font-size: 0.85rem; }
+.weekdays .all-days { padding: 0 14px; }
+.weekdays .all-days.on { background: var(--teal); border-color: var(--teal); color: #fff; }
+.days-summary { font-size: 0.85rem; font-weight: 700; color: var(--teal-dark); margin-top: 2px; }
+.marco-opt small + small { margin-top: 1px; }
+
+.saved-banner { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--ok-soft); color: var(--ok); font-weight: 700; font-size: 0.9rem; }
+.sheet { gap: 10px; }
+.sheet-label { position: relative; display: grid; justify-items: center; gap: 4px; padding: 8px 6px 6px; min-width: 76px; }
+.sheet-label small { font-size: 0.68rem; color: #5d5440; font-weight: 700; }
+.sheet-label.suggested { border: 3px solid var(--teal); background: var(--teal-soft); box-shadow: 0 0 0 3px rgba(11, 107, 98, 0.15); }
+.use-this { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); padding: 1px 8px; border-radius: 99px; background: var(--teal); color: #fff; font-size: 0.66rem; white-space: nowrap; }
+.tested-badge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 99px; background: var(--ok-soft); color: var(--ok); font-weight: 700; font-size: 0.9rem; }
+.last-action { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--ok-soft); color: #0f5130; font-size: 0.84rem; }
+.last-action span { flex: 1; }
+.link-btn { border: 0; background: none; color: var(--teal-dark); font-weight: 700; text-decoration: underline; font-size: 0.84rem; }
+.field-row { align-items: start; }
+.sheet-label { width: 86px; min-width: 0; }

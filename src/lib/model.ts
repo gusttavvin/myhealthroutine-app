@@ -58,7 +58,7 @@ export const MARCOS: Marco[] = [
     dose: "remédio do almoço",
     colorName: "vermelha",
     iconName: "prato",
-    color: "#E4572E",
+    color: "#C62828",
     ink: "#ffffff",
     icon: UtensilsCrossed,
     defaultTime: "12:00",
@@ -121,6 +121,7 @@ export type Medication = {
   stock: number;
   lot: string;
   label: string | null; // código da etiqueta, ex. "cafe-1"
+  labelTested?: boolean; // leitura de teste feita com o idoso
   createdAt?: number; // minuto do dia em que foi cadastrado hoje (remédio novo)
 };
 
@@ -150,11 +151,13 @@ export type Notice = {
   text: string;
   delivered: boolean;
   kind: "aviso" | "ajuda" | "reposicao" | "relatorio";
+  medId?: string;
 };
 
 export type ElderScene =
   | { name: "home" }
   | { name: "scan"; test?: string }
+  | { name: "take"; medId: string }
   | { name: "confirmed"; medId: string; test?: boolean }
   | { name: "reforco"; medId: string }
   | { name: "aviso"; medId: string | null; delivered: boolean; byHelp?: boolean }
@@ -169,7 +172,7 @@ export type FamilyScene =
   | { name: "prescricoes" }
   | { name: "prescricao"; medId: string | null }
   | { name: "etiquetas" }
-  | { name: "etiqueta"; medId: string; done?: boolean }
+  | { name: "etiqueta"; medId: string; done?: boolean; saved?: boolean }
   | { name: "adesao" }
   | { name: "estoque" };
 
@@ -194,6 +197,7 @@ export type State = {
   family: FamilyScene;
   user: string | null; // contato logado no Modo Familiar
   event: SimEvent | null;
+  flash: string | null; // mensagem a mostrar ao entrar no Modo Familiar
 };
 
 /* ------------------------------------------------------------------ */
@@ -248,7 +252,7 @@ function seedHistory(): HistoryEntry[] {
 
 export function initialState(): State {
   return {
-    version: 3,
+    version: 4,
     now: 8 * 60,
     meds: [
       {
@@ -304,6 +308,7 @@ export function initialState(): State {
     family: { name: "login" },
     user: null,
     event: null,
+    flash: null,
   };
 }
 

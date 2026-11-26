@@ -37,6 +37,8 @@ export type Action =
   | { type: "associate"; medId: string; code: string }
   | { type: "notice"; notice: Omit<Notice, "id" | "at"> }
   | { type: "consumeReadFail" }
+  | { type: "testDone"; medId: string }
+  | { type: "clearFlash" }
   | { type: "toggle"; key: "offline" | "nextReadFails" | "sound" }
   | { type: "reset" }
   | { type: "load"; state: State };
@@ -171,8 +173,20 @@ function reducer(state: State, action: Action): State {
     case "associate":
       return {
         ...state,
-        meds: state.meds.map((m) => (m.id === action.medId ? { ...m, label: action.code } : m)),
+        meds: state.meds.map((m) => (m.id === action.medId ? { ...m, label: action.code, labelTested: false } : m)),
       };
+    case "testDone": {
+      const med = state.meds.find((m) => m.id === action.medId);
+      return {
+        ...state,
+        meds: state.meds.map((m) => (m.id === action.medId ? { ...m, labelTested: true } : m)),
+        mode: "family",
+        family: { name: "painel" },
+        flash: med ? `Leitura de teste feita: a etiqueta da caixa de ${med.name} funciona.` : null,
+      };
+    }
+    case "clearFlash":
+      return { ...state, flash: null };
     case "notice":
       return { ...state, notices: addNotice(state, action.notice) };
     case "consumeReadFail":

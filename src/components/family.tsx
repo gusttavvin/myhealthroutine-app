@@ -61,7 +61,7 @@ const ToastContext = createContext<(message: string, kind?: ToastKind) => void>(
 const useToast = () => useContext(ToastContext);
 
 export function FamilyMode() {
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
   const [toast, setToast] = useState<{ message: string; kind: ToastKind } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -73,6 +73,14 @@ export function FamilyMode() {
 
   const scene = state.family;
   const logged = Boolean(state.user);
+
+  useEffect(() => {
+    if (state.flash) {
+      notify(state.flash);
+      dispatch({ type: "clearFlash" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.flash]);
 
   return (
     <ToastContext.Provider value={notify}>
@@ -91,7 +99,7 @@ export function FamilyMode() {
             {scene.name === "prescricoes" && <Prescriptions />}
             {scene.name === "prescricao" && <PrescriptionForm medId={scene.medId} />}
             {scene.name === "etiquetas" && <Labels />}
-            {scene.name === "etiqueta" && <Associate medId={scene.medId} done={scene.done} />}
+            {scene.name === "etiqueta" && <Associate medId={scene.medId} done={scene.done} saved={scene.saved} />}
             {scene.name === "adesao" && <Adherence />}
             {scene.name === "estoque" && <Stock />}
             {(scene.name === "senha" || scene.name === "novo" || scene.name === "vincular") && <Dashboard />}
@@ -111,24 +119,18 @@ function FamilyTop({ title, back = true }: { title: string; back?: boolean }) {
   const { dispatch } = useStore();
   return (
     <header className="fam-top">
-      {back ? (
-        <button type="button" className="icon-btn" aria-label="Voltar ao painel" onClick={() => dispatch({ type: "family", scene: { name: "painel" } })}>
-          <ArrowLeft size={22} />
-        </button>
-      ) : (
-        <span className="fam-logo">
-          <Tag size={18} />
-        </span>
-      )}
+      <span className="fam-logo">
+        <Tag size={18} />
+      </span>
       <h1>{title}</h1>
       <nav className="fam-ubiq" aria-label="Acesso rápido">
         {back ? (
-          <button type="button" className="icon-btn" aria-label="Ir ao painel" title="Painel" onClick={() => dispatch({ type: "family", scene: { name: "painel" } })}>
-            <House size={20} />
+          <button type="button" className="text-btn" aria-label="Ir ao painel" onClick={() => dispatch({ type: "family", scene: { name: "painel" } })}>
+            <House size={18} /> Painel
           </button>
         ) : null}
-        <button type="button" className="icon-btn" aria-label="Sair do modo" title="Sair do modo" onClick={() => dispatch({ type: "logout" })}>
-          <LogOut size={20} />
+        <button type="button" className="text-btn" aria-label="Sair do modo" onClick={() => dispatch({ type: "logout" })}>
+          <LogOut size={18} /> Sair
         </button>
       </nav>
     </header>
@@ -629,8 +631,9 @@ function PrescriptionForm({ medId }: { medId: string | null }) {
     };
     dispatch({ type: "saveMed", med });
     if (!med.label) {
-      notify(marcoChanged ? "Prescrição salva. O marco mudou: troque a etiqueta da caixa." : "Prescrição salva. Agora associe a etiqueta.");
-      dispatch({ type: "family", scene: { name: "etiqueta", medId: med.id } });
+      // A confirmação aparece no topo da próxima tela (e não por cima da cartela de etiquetas).
+      if (marcoChanged) notify("Prescrição salva. O marco mudou: troque a etiqueta da caixa.");
+      dispatch({ type: "family", scene: { name: "etiqueta", medId: med.id, saved: !marcoChanged } });
     } else {
       notify("Prescrição atualizada.");
       dispatch({ type: "family", scene: { name: "prescricoes" } });
@@ -652,13 +655,13 @@ function PrescriptionForm({ medId }: { medId: string | null }) {
           ) : null}
           <label className="field">
             <span>Medicamento</span>
-            <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ex.: Omeprazol" aria-invalid={Boolean(errors.name)} />
+            <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ex.: Dipirona" aria-invalid={Boolean(errors.name)} />
             {errors.name ? <em className="field-error">{errors.name}</em> : null}
           </label>
           <div className="field-row">
             <label className="field">
               <span>Dosagem</span>
-              <input value={form.dosage} onChange={(e) => set("dosage", e.target.value)} placeholder="Ex.: 20 mg" aria-invalid={Boolean(errors.dosage)} />
+              <input value={form.dosage} onChange={(e) => set("dosage", e.target.value)} placeholder="Ex.: 500 mg" aria-invalid={Boolean(errors.dosage)} />
               {errors.dosage ? <em className="field-error">{errors.dosage}</em> : null}
             </label>
             <label className="field">
@@ -692,6 +695,9 @@ function PrescriptionForm({ medId }: { medId: string | null }) {
                     <small>
                       {mc.colorName} · {mc.iconName}
                     </small>
+                    <small>
+                      das {fmt(mc.range[0])} às {fmt(mc.range[1])}
+                    </small>
                   </span>
                 </button>
               ))}
@@ -707,26 +713,39 @@ function PrescriptionForm({ medId }: { medId: string | null }) {
 
           <div className="field">
             <span>Frequência</span>
+            <small className="hint">Toque em um dia para marcar ou desmarcar. Os marcados ficam verdes, com ✓.</small>
             <div className="weekdays">
+              <button
+                type="button"
+                aria-pressed={form.days.length === 7}
+                className={`all-days ${form.days.length === 7 ? "on" : ""}`}
+                onClick={() => set("days", form.days.length === 7 ? [] : [0, 1, 2, 3, 4, 5, 6])}
+              >
+                {form.days.length === 7 ? "✓ " : ""}Todos os dias
+              </button>
               {WEEKDAYS.map((d) => (
                 <button
                   key={d.value}
                   type="button"
                   aria-pressed={form.days.includes(d.value)}
                   aria-label={d.label}
-                  title={d.label}
                   className={form.days.includes(d.value) ? "on" : ""}
                   onClick={() =>
                     set("days", form.days.includes(d.value) ? form.days.filter((x) => x !== d.value) : [...form.days, d.value])
                   }
                 >
-                  {d.short}
+                  {form.days.includes(d.value) ? "✓ " : ""}
+                  {d.label.slice(0, 3)}
                 </button>
               ))}
-              <button type="button" className="all-days" onClick={() => set("days", [0, 1, 2, 3, 4, 5, 6])}>
-                todos
-              </button>
             </div>
+            <p className="days-summary">
+              {form.days.length === 7
+                ? "Toma todos os dias."
+                : form.days.length
+                  ? `Toma só: ${[...form.days].sort().map((d) => WEEKDAYS[d].label.slice(0, 3)).join(", ")}.`
+                  : "Nenhum dia marcado."}
+            </p>
             {errors.days ? <em className="field-error">{errors.days}</em> : null}
           </div>
 
@@ -738,7 +757,8 @@ function PrescriptionForm({ medId }: { medId: string | null }) {
             </label>
             <label className="field">
               <span>Lote (opcional)</span>
-              <input value={form.lot} onChange={(e) => set("lot", e.target.value.toUpperCase())} placeholder="Ex.: OM5521" />
+              <input value={form.lot} onChange={(e) => set("lot", e.target.value.toUpperCase())} placeholder="Ex.: AB1234" />
+              <small className="hint">Vai no aviso de reposição, para comprar o mesmo remédio.</small>
             </label>
           </div>
 
@@ -771,7 +791,7 @@ function Labels() {
                   <strong>
                     {m.name} {m.dosage}
                   </strong>
-                  <small className={m.label ? "" : "warn-text"}>{m.label ? labelName(m.label) : "sem etiqueta — associar agora"}</small>
+                  <small className={m.label ? "" : "warn-text"}>{m.label ? `${labelName(m.label)}${m.labelTested ? " · testada ✓" : ""}` : "sem etiqueta, associar agora"}</small>
                 </span>
                 <ChevronRight size={16} />
               </button>
@@ -783,7 +803,9 @@ function Labels() {
   );
 }
 
-function Associate({ medId, done }: { medId: string; done?: boolean }) {
+const SHORT: Record<MarcoId, string> = { amanhecer: "Amanhecer", cafe: "Manhã", almoco: "Almoço", cha: "Tarde", jantar: "Noite", dormir: "Dormir" };
+
+function Associate({ medId, done, saved }: { medId: string; done?: boolean; saved?: boolean }) {
   const { state, dispatch } = useStore();
   const notify = useToast();
   const med = state.meds.find((m) => m.id === medId);
@@ -856,16 +878,32 @@ function Associate({ medId, done }: { medId: string; done?: boolean }) {
             </strong>{" "}
             agora tem a <strong>{labelName(med.label)}</strong> ({mc.label}, {med.time}).
           </p>
-          <div className="tip">
-            <Smartphone size={20} />
-            <p>Entregue o celular ao Sr. Aloísio e façam juntos uma leitura de teste. Nada será registrado.</p>
-          </div>
-          <button type="button" className="btn primary wide" onClick={testRead}>
-            <ScanLine size={18} /> Fazer leitura de teste com o Sr. Aloísio
-          </button>
-          <button type="button" className="btn ghost wide" onClick={() => dispatch({ type: "family", scene: { name: "painel" } })}>
-            Voltar ao painel
-          </button>
+          {med.labelTested ? (
+            <>
+              <p className="tested-badge">
+                <Check size={18} strokeWidth={3} /> Leitura de teste feita com o Sr. Aloísio
+              </p>
+              <button type="button" className="btn primary wide" onClick={() => dispatch({ type: "family", scene: { name: "painel" } })}>
+                Voltar ao painel
+              </button>
+              <button type="button" className="btn ghost wide" onClick={testRead}>
+                <ScanLine size={18} /> Testar de novo
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="tip">
+                <Smartphone size={20} />
+                <p>Entregue o celular ao Sr. Aloísio e façam juntos uma leitura de teste. Nada será registrado.</p>
+              </div>
+              <button type="button" className="btn primary wide" onClick={testRead}>
+                <ScanLine size={18} /> Fazer leitura de teste com o Sr. Aloísio
+              </button>
+              <button type="button" className="btn ghost wide" onClick={() => dispatch({ type: "family", scene: { name: "painel" } })}>
+                Pular o teste e voltar ao painel
+              </button>
+            </>
+          )}
         </main>
       </>
     );
@@ -875,6 +913,11 @@ function Associate({ medId, done }: { medId: string; done?: boolean }) {
     <>
       <FamilyTop title={med.label ? "Trocar etiqueta" : "Associar etiqueta"} />
       <main className="fam-main">
+        {saved ? (
+          <p className="saved-banner" role="status">
+            <Check size={18} strokeWidth={3} /> Prescrição de {med.name} salva. Agora falta a etiqueta da caixa.
+          </p>
+        ) : null}
         <label className="field">
           <span>Medicamento que receberá a etiqueta</span>
           <select
@@ -971,8 +1014,18 @@ function Associate({ medId, done }: { medId: string; done?: boolean }) {
                 </p>
                 <div className="sheet">
                   {free.map((l) => (
-                    <button key={l.code} type="button" className="sheet-label" onClick={() => read(l.code)} disabled={phase === "reading"}>
-                      <LabelTag code={l.code} size="sm" />
+                    <button
+                      key={l.code}
+                      type="button"
+                      className={`sheet-label ${l.code === suggested ? "suggested" : ""}`}
+                      onClick={() => read(l.code)}
+                      disabled={phase === "reading"}
+                    >
+                      <LabelTag code={l.code} size="md" />
+                      <small>
+                        {SHORT[l.marco]} nº {l.n}
+                      </small>
+                      {l.code === suggested ? <b className="use-this">use esta</b> : null}
                     </button>
                   ))}
                 </div>
@@ -1009,6 +1062,7 @@ function Adherence() {
   const data = adherence(state, period);
   const histMeds = state.meds.filter((m) => state.history.some((h) => h.medId === m.id));
   const range = `${dayLabel(-period)} a ${dayLabel(-1)}`;
+  const lastReport = state.notices.find((n) => n.kind === "relatorio");
 
   function generate() {
     setGenerating(true);
@@ -1068,7 +1122,7 @@ function Adherence() {
           <div>
             <p className="fam-card-title">Pontualidade</p>
             <p className="muted small">
-              {range} · dose confirmada pela leitura da etiqueta em até 20 min
+              {range} · dose confirmada pelo idoso (etiqueta lida e “Já tomei”) em até 20 min
             </p>
             <p className="adh-counts">
               <span className="ok">✓ {data.onTime} no horário</span>
@@ -1077,6 +1131,26 @@ function Adherence() {
             </p>
           </div>
         </section>
+
+        {error ? (
+          <p className="form-alert" role="alert">
+            <AlertTriangle size={18} /> {error}
+          </p>
+        ) : null}
+        <button type="button" className="btn primary wide" onClick={generate} disabled={generating}>
+          <BarChart3 size={18} /> {generating ? "Gerando…" : error ? "Tentar gerar de novo" : "Gerar relatório para o médico"}
+        </button>
+        {lastReport && !report ? (
+          <div className="last-action">
+            <Check size={16} strokeWidth={3} />
+            <span>
+              Último relatório gerado às {fmt(lastReport.at)} ({lastReport.text.replace(/^.*\((.*)\).*$/, "$1")}).
+            </span>
+            <button type="button" className="link-btn" onClick={generate}>
+              Abrir de novo
+            </button>
+          </div>
+        ) : null}
 
         <section className="fam-card">
           <p className="fam-card-title">Histórico de confirmações</p>
@@ -1113,14 +1187,6 @@ function Adherence() {
           </div>
         </section>
 
-        {error ? (
-          <p className="form-alert" role="alert">
-            <AlertTriangle size={18} /> {error}
-          </p>
-        ) : null}
-        <button type="button" className="btn primary wide" onClick={generate} disabled={generating}>
-          <BarChart3 size={18} /> {generating ? "Gerando…" : error ? "Tentar gerar de novo" : "Gerar relatório"}
-        </button>
       </main>
 
       {report ? (
@@ -1134,8 +1200,12 @@ function Adherence() {
             </header>
             <pre>{report}</pre>
             <button type="button" className="btn primary wide" onClick={share}>
-              <Send size={18} /> Compartilhar
+              <Send size={18} /> Compartilhar com o médico
             </button>
+            <button type="button" className="btn ghost wide" onClick={() => setReport(null)}>
+              Fechar
+            </button>
+            <p className="muted small">O relatório fica guardado nesta tela, em “Último relatório gerado”.</p>
           </div>
         </div>
       ) : null}
@@ -1172,6 +1242,7 @@ function Stock() {
           to: "família",
           text: `Reposição: ${med.name} ${med.dosage}, lote ${med.lot}. Restam ${med.stock} comprimidos. (enviado por ${user?.name.split(" ")[0] ?? "você"})`,
           delivered: true,
+          medId: med.id,
         },
       });
       setOpen(null);
@@ -1190,6 +1261,7 @@ function Stock() {
             .map((m) => {
               const left = daysLeft(m);
               const low = left <= 7;
+              const sent = state.notices.find((n) => n.kind === "reposicao" && n.medId === m.id);
               const msg = `Precisamos repor ${m.name} ${m.dosage} (lote ${m.lot}). Restam ${m.stock} comprimidos, o que dá para cerca de ${left} dia${left === 1 ? "" : "s"}.`;
               return (
                 <li key={m.id} className={low ? "low" : ""}>
@@ -1218,6 +1290,12 @@ function Stock() {
                       <Clock3 size={14} /> dura cerca de {left} dias
                     </p>
                   )}
+                  {sent && open !== m.id ? (
+                    <p className="last-action">
+                      <Check size={16} strokeWidth={3} />
+                      <span>Aviso de reposição enviado às {fmt(sent.at)}{sent.text.match(/enviado por ([^)]+)/) ? ` por ${sent.text.match(/enviado por ([^)]+)/)![1]}` : ""}.</span>
+                    </p>
+                  ) : null}
                   {open === m.id ? (
                     <div className="composer">
                       <p className="muted small">Mensagem para a família {recipients.length ? `(${recipients.join(", ")})` : ""}:</p>
@@ -1235,13 +1313,13 @@ function Stock() {
                   ) : (
                     <button
                       type="button"
-                      className={`btn ${low ? "primary" : "ghost"} wide`}
+                      className={`btn ${low && !sent ? "primary" : "ghost"} wide`}
                       onClick={() => {
                         setOpen(m.id);
                         setError("");
                       }}
                     >
-                      <Bell size={16} /> Avisar reposição
+                      <Bell size={16} /> {sent ? "Avisar de novo" : "Avisar reposição"}
                     </button>
                   )}
                 </li>

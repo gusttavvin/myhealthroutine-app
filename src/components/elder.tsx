@@ -64,11 +64,13 @@ export function ElderMode() {
     <div className="elder">
       {scene.name === "home" && <ElderHome />}
       {scene.name === "scan" && <ElderScan test={scene.test} />}
+      {scene.name === "take" && <ElderTake medId={scene.medId} />}
       {scene.name === "confirmed" && <ElderConfirmed medId={scene.medId} test={scene.test} />}
       {scene.name === "reforco" && <ElderReforco medId={scene.medId} />}
       {scene.name === "aviso" && <ElderAviso medId={scene.medId} delivered={scene.delivered} byHelp={scene.byHelp} />}
       {scene.name === "ajuda" && <ElderAjuda />}
-      {scene.name !== "home" && scene.name !== "scan" && scene.name !== "ajuda" && !(scene.name === "confirmed" && scene.test) ? (
+      {/* "Pedir ajuda" fica nas telas em que o idoso permanece; nas telas rápidas de tomar e confirmar sai, para não ser tocado por engano. */}
+      {scene.name === "reforco" || scene.name === "aviso" ? (
         <button type="button" className="elder-help-fab" onClick={() => dispatch({ type: "elder", scene: { name: "ajuda" } })}>
           <HandHeart /> Pedir ajuda
         </button>
@@ -77,14 +79,16 @@ export function ElderMode() {
   );
 }
 
-function ElderTop({ title }: { title?: string }) {
+function ElderTop({ title, hideExit = false }: { title?: string; hideExit?: boolean }) {
   const { dispatch } = useStore();
   return (
     <header className="elder-top">
       <span className="elder-hello">{title ?? `Sr. ${ELDER_NAME}`}</span>
-      <button type="button" className="elder-exit" onClick={() => dispatch({ type: "mode", mode: "start" })}>
-        <LogOut size={22} /> Sair
-      </button>
+      {hideExit ? null : (
+        <button type="button" className="elder-exit" onClick={() => dispatch({ type: "mode", mode: "start" })}>
+          <LogOut size={22} /> Sair
+        </button>
+      )}
     </header>
   );
 }
@@ -145,7 +149,11 @@ function ElderHome() {
             <p className="elder-section">Agora</p>
             <DoseCard dose={current} ringing={ringing} />
             <button type="button" className="elder-primary" onClick={() => dispatch({ type: "elder", scene: { name: "scan" } })}>
-              <Camera size={34} /> Pegar a caixa e abrir a câmera
+              <Camera size={34} />
+              <span className="btn-two">
+                <b>Tomar o remédio agora</b>
+                <small>abre a câmera para ler a etiqueta da caixa</small>
+              </span>
             </button>
           </>
         ) : (
@@ -289,7 +297,7 @@ function ElderScan({ test }: { test?: string }) {
     }
     success(state.sound);
     vibrate([120, 60, 220]);
-    dispatch({ type: "confirm", medId: med.id });
+    dispatch({ type: "elder", scene: { name: "take", medId: med.id } });
   }
 
   const pickedMed = picked ? state.meds.find((m) => m.id === picked) ?? (picked === EXTRA_BOX.id ? EXTRA_BOX : null) : null;
@@ -308,7 +316,10 @@ function ElderScan({ test }: { test?: string }) {
             <span>
               Aproxime a câmera da etiqueta <strong>{tmc.colorName}</strong> com <strong>{tmc.iconName}</strong>
             </span>
-            <LabelTag marcoId={tmc.id} size="md" showNumber={false} />
+            <span className="look-for">
+              <LabelTag marcoId={tmc.id} size="md" showNumber={false} />
+              <small>procure esta</small>
+            </span>
           </p>
         ) : (
           <p className="scan-instruction">Nenhum remédio pendente agora.</p>
@@ -330,7 +341,8 @@ function ElderScan({ test }: { test?: string }) {
             <p className="camera-hint">
               <Camera size={30} />
               Não precisa mirar certinho.
-              <br />É só aproximar a etiqueta.
+              <br />
+              Pode deixar o celular apoiado na mesa e aproximar a caixa.
             </p>
           )}
         </Viewfinder>
@@ -357,20 +369,18 @@ function ElderScan({ test }: { test?: string }) {
   );
 }
 
-function ElderConfirmed({ medId, test }: { medId: string; test?: boolean }) {
+/** Etiqueta certa: o idoso toma o remédio e só então confirma (a dose não é registrada antes). */
+function ElderTake({ medId }: { medId: string }) {
   const { state, dispatch } = useStore();
   const med = state.meds.find((m) => m.id === medId);
   const mc = med ? marco(med.marco) : null;
-  const next = nextDose(state);
-  const pending = currentDose(state);
-  const at = state.today[medId];
 
   useEffect(() => {
     if (!med || !mc) return;
-    const text = test
-      ? `Leitura de teste funcionou. Etiqueta ${mc.colorName}, ${mc.dose}. Nada foi registrado.`
-      : `${cap(mc.dose)}, etiqueta ${mc.colorName}, confirmado, Sr. ${ELDER_NAME}. Tome ${med.amount} com água.`;
-    const t = setTimeout(() => speak(text, state.sound), 500);
+    const t = setTimeout(
+      () => speak(`Etiqueta certa. ${cap(mc.dose)}. Tome ${med.amount} com água e depois toque em Já tomei.`, state.sound),
+      400,
+    );
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -378,28 +388,103 @@ function ElderConfirmed({ medId, test }: { medId: string; test?: boolean }) {
   if (!med || !mc) return null;
   return (
     <>
-      <ElderTop />
-      <main className="elder-main confirmed">
-        <span className="big-check">
-          <Check size={70} strokeWidth={3.2} />
-        </span>
-        <h1 className="confirmed-title">{test ? "Leitura de teste funcionou!" : "Confirmado!"}</h1>
+      <ElderTop hideExit />
+      <main className="elder-main take">
+        <p className="take-ok">
+          <Check size={26} strokeWidth={3} /> Etiqueta certa
+        </p>
         <div className="confirmed-dose">
           <LabelTag code={med.label} size="lg" />
           <p>
             <strong>{cap(mc.dose)}</strong>
             <br />
-            etiqueta {mc.colorName} com {mc.iconName}
+            caixa {mc.colorName} com {mc.iconName}
           </p>
         </div>
+        <p className="take-now">Tome agora {med.amount} com água.</p>
+        <button
+          type="button"
+          className="elder-primary"
+          onClick={() => {
+            success(state.sound);
+            vibrate([120, 60, 220]);
+            dispatch({ type: "confirm", medId: med.id });
+          }}
+        >
+          <Check size={34} strokeWidth={3} /> Já tomei
+        </button>
+        <button type="button" className="elder-link" onClick={() => dispatch({ type: "elder", scene: { name: "home" } })}>
+          Ainda não tomei
+        </button>
+        <p className="take-note">O remédio só fica registrado quando você toca em “Já tomei”.</p>
+      </main>
+    </>
+  );
+}
+
+function ElderConfirmed({ medId, test }: { medId: string; test?: boolean }) {
+  const { state, dispatch } = useStore();
+  const med = state.meds.find((m) => m.id === medId);
+  const mc = med ? marco(med.marco) : null;
+  const next = nextDose(state);
+  const pending = currentDose(state);
+  const at = state.today[medId];
+  const [left, setLeft] = useState(10);
+
+  useEffect(() => {
+    if (!med || !mc) return;
+    const text = test
+      ? `Leitura de teste funcionou. Etiqueta ${mc.colorName}, ${mc.dose}. Nada foi registrado.`
+      : `Pronto, Sr. ${ELDER_NAME}. ${cap(mc.dose)} registrado.`;
+    const t = setTimeout(() => speak(text, state.sound), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Depois de confirmar, volta sozinho para a rotina: para o idoso, a tarefa acaba aqui.
+  useEffect(() => {
+    if (test) return;
+    if (left <= 0) {
+      dispatch({ type: "elder", scene: { name: "home" } });
+      return;
+    }
+    const t = setTimeout(() => setLeft((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [left, test, dispatch]);
+
+  if (!med || !mc) return null;
+  return (
+    <>
+      <ElderTop hideExit />
+      <main className="elder-main confirmed">
+        <span className="big-check">
+          <Check size={70} strokeWidth={3.2} />
+        </span>
+        <h1 className="confirmed-title">{test ? "Leitura de teste funcionou!" : "Pronto, remédio registrado!"}</h1>
         {test ? (
-          <p className="confirmed-info">Era só um teste: nada foi registrado no histórico.</p>
+          <>
+            <div className="confirmed-dose">
+              <LabelTag code={med.label} size="lg" />
+              <p>
+                <strong>{cap(mc.dose)}</strong>
+                <br />
+                etiqueta {mc.colorName} com {mc.iconName}
+              </p>
+            </div>
+            <p className="confirmed-info">Era só um teste: nada foi registrado no histórico.</p>
+            <button type="button" className="elder-primary" onClick={() => dispatch({ type: "testDone", medId: med.id })}>
+              Concluir e voltar ao painel
+            </button>
+          </>
         ) : (
           <>
-            <p className="confirmed-take">Tome {med.amount} com água.</p>
             <p className="confirmed-info">
-              Registrado às <strong>{fmt(at ?? state.now)}</strong> · status: <strong>confirmado</strong>
+              {cap(mc.dose)} registrado às <strong>{fmt(at ?? state.now)}</strong>.
             </p>
+            <button type="button" className="elder-primary" onClick={() => dispatch({ type: "elder", scene: { name: "home" } })}>
+              Voltar à rotina
+            </button>
+            <p className="auto-back">Voltando sozinho em {left} s</p>
             {pending ? (
               <p className="confirmed-next warn">
                 Ainda falta: <strong>{pending.marco.label}</strong> ({pending.med.time})
@@ -416,13 +501,6 @@ function ElderConfirmed({ medId, test }: { medId: string; test?: boolean }) {
             )}
           </>
         )}
-        <button
-          type="button"
-          className="elder-primary"
-          onClick={() => dispatch(test ? { type: "mode", mode: "family" } : { type: "elder", scene: { name: "home" } })}
-        >
-          {test ? "Voltar ao Modo Familiar" : "Voltar à rotina"}
-        </button>
       </main>
     </>
   );
@@ -441,7 +519,11 @@ function ElderReforco({ medId }: { medId: string }) {
         </p>
         <DoseCard dose={dose} ringing />
         <button type="button" className="elder-primary" onClick={() => dispatch({ type: "elder", scene: { name: "scan" } })}>
-          <Camera size={34} /> Pegar a caixa e abrir a câmera
+          <Camera size={34} />
+              <span className="btn-two">
+                <b>Tomar o remédio agora</b>
+                <small>abre a câmera para ler a etiqueta da caixa</small>
+              </span>
         </button>
         <button type="button" className="elder-link" onClick={() => dispatch({ type: "elder", scene: { name: "home" } })}>
           Voltar à rotina
@@ -498,7 +580,11 @@ function ElderAviso({ medId, delivered, byHelp }: { medId: string | null; delive
 
         {pending ? (
           <button type="button" className="elder-primary" onClick={() => dispatch({ type: "elder", scene: { name: "scan" } })}>
-            <Camera size={34} /> Pegar a caixa e abrir a câmera
+            <Camera size={34} />
+              <span className="btn-two">
+                <b>Tomar o remédio agora</b>
+                <small>abre a câmera para ler a etiqueta da caixa</small>
+              </span>
           </button>
         ) : null}
         <button type="button" className={pending ? "elder-link" : "elder-primary"} onClick={() => dispatch({ type: "elder", scene: { name: "home" } })}>
